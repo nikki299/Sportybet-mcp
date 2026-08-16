@@ -7,6 +7,7 @@
  * Safety boundary: this server can ONLY prepare betslips and create shareable
  * booking codes. It has no code path that places, submits, or stakes a wager,
  * and it never requests credentials.
+ * Yup
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -90,7 +91,7 @@ const NO_STAKE = " This tool NEVER places, submits, or stakes a wager.";
 server.registerTool(
   "sportybet_get_fixtures",
   {
-    title: "Get upcoming SportyBet football fixtures",
+    title: "Get upcoming SportyBet football fixturess",
     description:
       "Retrieve upcoming football fixtures from SportyBet (Nigeria region). Optionally filter by date (YYYY-MM-DD, West Africa Time) and/or league. Returns eventId, league, teams, start time and status — no raw API data. Odds are fetched separately with sportybet_get_markets.",
     inputSchema: {

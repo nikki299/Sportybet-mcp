@@ -52,12 +52,28 @@ export function validateSelection(
     errors.push(`Event ${selection.eventId} has match status "${fixture.matchStatus}" and is not open for pre-match booking.`);
   }
 
-  const market = fixture.markets.find((m) => m.marketId === selection.marketId);
+  // A single marketId can span several specifier lines (e.g. Over/Under has
+  // separate markets per "total=N"). Match on marketId AND specifier together
+  // so a "total=1.5" selection resolves to the 1.5 line, not the first one.
+  const market = fixture.markets.find(
+    (m) =>
+      m.marketId === selection.marketId &&
+      (selection.specifier == null || m.specifier === selection.specifier),
+  );
   if (!market) {
-    errors.push(
-      `Market "${selection.marketId}" is not offered on ${fixture.homeTeam} vs ${fixture.awayTeam}. ` +
-        `Available market ids: ${fixture.markets.map((m) => m.marketId).join(", ") || "none"}.`,
-    );
+    const sameId = fixture.markets.filter((m) => m.marketId === selection.marketId);
+    if (sameId.length > 0 && selection.specifier != null) {
+      const specs = [...new Set(sameId.map((m) => m.specifier).filter(Boolean))];
+      errors.push(
+        `Market "${selection.marketId}" with specifier "${selection.specifier}" is not offered on ${fixture.homeTeam} vs ${fixture.awayTeam}. ` +
+          `Available specifiers: ${specs.join(", ") || "none"}.`,
+      );
+    } else {
+      errors.push(
+        `Market "${selection.marketId}" is not offered on ${fixture.homeTeam} vs ${fixture.awayTeam}. ` +
+          `Available market ids: ${[...new Set(fixture.markets.map((m) => m.marketId))].join(", ") || "none"}.`,
+      );
+    }
   } else {
     const outcome = market.outcomes.find((o) => o.outcomeId === selection.outcomeId);
     if (!outcome) {
