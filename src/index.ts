@@ -91,7 +91,7 @@ const NO_STAKE = " This tool NEVER places, submits, or stakes a wager.";
 server.registerTool(
   "sportybet_get_fixtures",
   {
-    title: "Get upcoming SportyBet football fixturess",
+    title: "Get upcoming SportyBet football fixtures",
     description:
       "Retrieve upcoming football fixtures from SportyBet (Nigeria region). Optionally filter by date (YYYY-MM-DD, West Africa Time) and/or league. Returns eventId, league, teams, start time and status — no raw API data. Odds are fetched separately with sportybet_get_markets.",
     inputSchema: {
@@ -119,7 +119,7 @@ server.registerTool(
 server.registerTool(
   "sportybet_get_odds",
   {
-    title: "Get current odds for one or more events",
+    title: "Get current odds for one, two or more events",
     description:
       "Return normalized current odds (event, market, outcome, odds, eventId, marketId, outcomeId) for up to 50 events, each line stamped with a fetch timestamp. Odds change frequently — treat every value as a snapshot." + NO_STAKE,
     inputSchema: {
