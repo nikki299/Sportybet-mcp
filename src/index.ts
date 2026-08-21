@@ -119,7 +119,7 @@ server.registerTool(
 server.registerTool(
   "sportybet_get_odds",
   {
-    title: "Get current odds for one, two or more events",
+    title: "Get current odds for one, or more events",
     description:
       "Return normalized current odds (event, market, outcome, odds, eventId, marketId, outcomeId) for up to 50 events, each line stamped with a fetch timestamp. Odds change frequently — treat every value as a snapshot." + NO_STAKE,
     inputSchema: {
