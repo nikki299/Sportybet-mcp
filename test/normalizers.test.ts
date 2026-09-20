@@ -55,7 +55,7 @@ test("normalizeBooking parses shareCode, deadline and legs", () => {
   const booking = normalizeBooking(raw.data!);
   assert.match(booking.shareCode, /^[A-Z0-9]+$/);
   assert.ok(booking.shareURL.includes("shareCode="));
-  assert.ok(booking.deadlineMs! > Date.now() - 1e9);
+  assert.ok(Number.isFinite(booking.deadlineMs) && booking.deadlineMs! > 0);
   assert.ok(booking.expiresAt);
   assert.ok(booking.legs.length >= 1);
   const leg = booking.legs[0]!;

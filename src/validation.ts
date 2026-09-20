@@ -120,7 +120,7 @@ export function validateSelections(
   const byId = new Map(fixtures.map((f) => [f.eventId, f]));
   const results = selections.map((s) => validateSelection(s, byId.get(s.eventId)));
 
-  const key = (s: SportyBetSelection) => `${s.eventId}|${s.marketId}|${s.outcomeId}`;
+  const key = (s: SportyBetSelection) => `${s.eventId}|${s.marketId}|${s.specifier ?? ""}|${s.outcomeId}`;
   const seen = new Set<string>();
   for (const r of results) {
     const k = key(r.selection);

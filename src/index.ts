@@ -7,7 +7,6 @@
  * Safety boundary: this server can ONLY prepare betslips and create shareable
  * booking codes. It has no code path that places, submits, or stakes a wager,
  * and it never requests credentials.
- * Yup
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
