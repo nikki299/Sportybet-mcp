@@ -103,6 +103,38 @@ async function researchTicket(style: ResearchStyle): Promise<string> {
   return `${style.toUpperCase()} RESEARCH TICKET\n${describe(created)}\n\nSelection method: live SportyBet markets and odds only; this is not a prediction and does not assess form, H2H, injuries, or probability.${noStake}`;
 }
 
+async function randomTargetTicket(target: number): Promise<string> {
+  if (!Number.isFinite(target) || target <= 1 || target > 10000) throw new Error("Target odds must be between 1 and 10000.");
+  const fixtures = (await client.getFixtures({ timelineHours: 168, maxPages: 10 })).filter(
+    (fixture) => fixture.matchStatus === "Not start" && fixture.startTimeMs > Date.now(),
+  );
+  const candidates = fixtures.map((fixture) => {
+    const options = fixture.markets.flatMap((market) => market.outcomes
+      .filter((outcome) => outcome.isActive && Number.isFinite(outcome.odds) && outcome.odds > 1.05 && outcome.odds <= 8)
+      .map((outcome) => ({ eventId: fixture.eventId, marketId: market.marketId, outcomeId: outcome.outcomeId, specifier: market.specifier, odds: outcome.odds })));
+    return options.length ? options[Math.floor(Math.random() * options.length)] : null;
+  }).filter((value): value is NonNullable<typeof value> => value != null);
+  if (candidates.length < 2) throw new Error("SportyBet returned too few suitable upcoming games.");
+
+  let best: SportyBetSelection[] = [];
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let attempt = 0; attempt < 3000; attempt++) {
+    const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+    const count = Math.min(Math.max(2, Math.floor(Math.random() * 8) + 2), shuffled.length);
+    const sample = shuffled.slice(0, count);
+    const value = calcCombinedOdds(sample.map((item) => item.odds ?? 0));
+    const distance = Math.abs(Math.log(value / target));
+    if (distance < bestDistance) {
+      best = sample;
+      bestDistance = distance;
+    }
+    if (value >= target * 0.9 && value <= target * 1.1) break;
+  }
+  if (!best.length) throw new Error("Could not find a random ticket near the requested target.");
+  const created = await client.createBooking(best);
+  return `RANDOM BETSLIP TARGET ${target}\n${describe(created)}\n\nThis was selected randomly from live upcoming SportyBet markets. Actual combined odds may differ if prices move.${noStake}`;
+}
+
 function chunks<T>(items: T[], count: number): T[][] {
   const result: T[][] = Array.from({ length: count }, () => []);
   items.forEach((item, index) => result[index % count]!.push(item));
@@ -132,6 +164,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
       "/trim CODE 20 — trim toward a target combined odds",
       "/remove CODE team=NAME|market=TEXT|date=YYYY-MM-DD|first|last",
       "/random CODE 3 — choose random legs",
+      "/random-target 20 — randomly build a live ticket near 20 combined odds",
       "/market CODE Over 2.5 — change legs to an available market",
       "/research all — build conservative, balanced, and high-odds tickets from today's live games",
       "/today — show current upcoming fixtures",
@@ -236,6 +269,11 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
     return;
   }
 
+  if (command === "/random-target") {
+    await ctx.reply(await randomTargetTicket(Number(args[0])));
+    return;
+  }
+
   if (command === "/remove") {
     const booking = await loadCode(args[0] ?? "");
     const filter = (args.slice(1).join(" ") || "first").toLowerCase();
@@ -275,7 +313,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
   throw new Error("Unknown command. Send /help for available commands.");
 }
 
-bot.command(["start", "help", "today", "research", "inspect", "combine", "split", "regroup", "trim", "random", "remove", "market"], async (ctx) => {
+bot.command(["start", "help", "today", "research", "inspect", "combine", "split", "regroup", "trim", "random", "random-target", "remove", "market"], async (ctx) => {
   try {
     await handleCommand(ctx, ctx.message?.text ?? "");
   } catch (error) {
@@ -292,6 +330,15 @@ bot.on("message:text", async (ctx) => {
       await ctx.reply(`Could not read that booking code: ${error instanceof Error ? error.message : String(error)}${noStake}`);
     }
   } else {
+    const targetMatch = /(?:random|randomly|build|make).*?(?:around|near|target).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text) ?? /(?:random|randomly).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text);
+    if (targetMatch?.[1]) {
+      try {
+        await ctx.reply(await randomTargetTicket(Number(targetMatch[1])));
+      } catch (error) {
+        await ctx.reply(`Could not build that random betslip: ${error instanceof Error ? error.message : String(error)}${noStake}`);
+      }
+      return;
+    }
     await ctx.reply("Send a SportyBet booking code or /help for commands.");
   }
 });
