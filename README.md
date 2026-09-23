@@ -281,3 +281,9 @@ The project includes an optional Telegram polling bot for inspecting and transfo
 Available commands include `/inspect CODE`, `/split CODE 2`, `/regroup CODE league`, `/combine CODE1 CODE2`, `/trim CODE 20`, `/remove CODE team=NAME`, `/random CODE 3`, `/random-target 20`, `/market CODE Over 2.5`, `/research all`, and `/today`. Natural-language requests such as `Build me a random betslip around 20 odds` are also recognized. Sending a booking code by itself inspects it. The bot validates selections against current SportyBet data before creating any replacement booking code.
 
 The first version uses SportyBet's current fixtures, markets, and odds. It does not invent form, head-to-head, injury, or live-result information; those research fields require a separately verified sports-data provider and can be added later.
+
+### Optional structured agent mode
+
+Set `GEMINI_API_KEY` in the local `.env` file to enable structured natural-language intent parsing. The agent converts a message into a typed action such as inspect, split, combine, trim, remove, randomize, change market, or build a league/market ticket. It does not choose or invent event IDs, market IDs, outcome IDs, or booking codes. The bot fetches current SportyBet data and validates selections itself before creating a share code. If the Gemini key is absent or the API is unavailable, the deterministic parser remains available.
+
+Google AI Studio currently offers a free Gemini API tier with limited model access and quotas; those limits vary by project and model. Create a key at [Google AI Studio](https://aistudio.google.com/apikey), put it only in `.env`, and never commit or share it. The default model is `gemini-2.5-flash`; override it with `GEMINI_MODEL` if needed.

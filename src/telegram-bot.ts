@@ -3,6 +3,7 @@ import { loadConfig } from "./config.js";
 import { SportyBetClient } from "./client.js";
 import type { SportyBetBooking, SportyBetBookingLeg, SportyBetSelection } from "./types.js";
 import { calcCombinedOdds } from "./odds.js";
+import { interpretWithGemini } from "./agent.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
 if (!token) {
@@ -394,6 +395,26 @@ async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolea
   return false;
 }
 
+async function handleWithAgent(ctx: Context, text: string): Promise<boolean> {
+  const intent = await interpretWithGemini(text);
+  if (!intent) return false;
+  switch (intent.kind) {
+    case "inspect": await handleCommand(ctx, `/inspect ${intent.codes[0] ?? ""}`); return true;
+    case "split": await handleCommand(ctx, `/split ${intent.codes[0] ?? ""} ${intent.count || 2}`); return true;
+    case "regroup": await handleCommand(ctx, `/regroup ${intent.codes[0] ?? ""} ${intent.mode || "league"}`); return true;
+    case "combine": await handleCommand(ctx, `/combine ${intent.codes.join(" ")}`); return true;
+    case "trim": await handleCommand(ctx, `/trim ${intent.codes[0] ?? ""} ${intent.target}`); return true;
+    case "remove": await handleCommand(ctx, `/remove ${intent.codes[0] ?? ""} ${intent.filter || "first"}`); return true;
+    case "random_existing": await handleCommand(ctx, `/random ${intent.codes[0] ?? ""} ${intent.count || 3}`); return true;
+    case "random_target": await handleCommand(ctx, `/random-target ${intent.target}`); return true;
+    case "market": await handleCommand(ctx, `/market ${intent.codes[0] ?? ""} ${intent.market}`); return true;
+    case "league_market": await requestedMarketTicket(intent.league, intent.market).then((result) => ctx.reply(result)); return true;
+    case "research": await handleCommand(ctx, `/research ${intent.style || "all"}`); return true;
+    case "help": await handleCommand(ctx, "/help"); return true;
+    default: return false;
+  }
+}
+
 bot.command(["start", "help", "today", "research", "inspect", "combine", "split", "regroup", "trim", "random", "random-target", "remove", "market"], async (ctx) => {
   try {
     await handleCommand(ctx, ctx.message?.text ?? "");
@@ -411,6 +432,13 @@ bot.on("message:text", async (ctx) => {
       await ctx.reply(`Could not read that booking code: ${error instanceof Error ? error.message : String(error)}${noStake}`);
     }
   } else {
+    if (process.env.GEMINI_API_KEY?.trim()) {
+      try {
+        if (await handleWithAgent(ctx, text)) return;
+      } catch (error) {
+        console.warn("Structured agent unavailable; using deterministic parser:", error instanceof Error ? error.message : String(error));
+      }
+    }
     const targetMatch = /(?:random|randomly|build|make).*?(?:around|near|target).*?(\d+(?:\.\d+)?)(?:\s*odds?)?/i.exec(text) ?? /(?:random|randomly).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text);
     if (targetMatch?.[1]) {
       try {
