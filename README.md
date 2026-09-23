@@ -39,7 +39,10 @@ for Telegram and every returned booking code is formatted in monospace.
 Common shorthand is normalized: `GG`/`BTTS`, `1X`, `X2`, `DNB`, `HT/FT home/home`,
 and `home team over 1.5`. Use `/markets corner`, `/markets over`, or `/markets`
 to search market names. Gemini is optional; when configured it performs
-structured intent parsing, while the deterministic parser remains the fallback.
+strict structured intent parsing. Free-form Telegram requests do not fall back
+to guess-based parsing: if Gemini is unavailable, errors, or returns a
+clarification, no ticket is created. This prevents a vague request from being
+silently converted into an unrelated selection.
 
 ## 2. Architecture
 
