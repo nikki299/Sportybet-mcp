@@ -33,7 +33,8 @@ const system = `You are the intent parser for a SportyBet ticket assistant. Retu
 export async function interpretWithGemini(text: string): Promise<AgentIntent | null> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const configuredModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
+  const model = configuredModel === "gemini-2.5-flash" ? "gemini-3.6-flash" : configuredModel;
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

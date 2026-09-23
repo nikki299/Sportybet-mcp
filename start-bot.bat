@@ -18,6 +18,7 @@ if exist .env (
     if "%%A"=="SPORTYBET_REGION" set "SPORTYBET_REGION=%%B"
   )
 )
+if /i "%GEMINI_MODEL%"=="gemini-2.5-flash" set "GEMINI_MODEL=gemini-3.6-flash"
 
 if not defined TELEGRAM_BOT_TOKEN goto setup
 if /i "%TELEGRAM_BOT_TOKEN%"=="PASTE_YOUR_TELEGRAM_TOKEN_HERE" goto setup
@@ -33,7 +34,7 @@ if not defined TELEGRAM_BOT_TOKEN (
 )
 echo.
 set /p "GEMINI_API_KEY=Optional Gemini key (press Enter to skip): "
-if not defined GEMINI_MODEL set "GEMINI_MODEL=gemini-2.5-flash"
+if not defined GEMINI_MODEL set "GEMINI_MODEL=gemini-3.6-flash"
 if not defined SPORTYBET_REGION set "SPORTYBET_REGION=ng"
 (
   echo TELEGRAM_BOT_TOKEN=%TELEGRAM_BOT_TOKEN%
