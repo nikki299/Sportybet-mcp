@@ -19,17 +19,22 @@ const codePattern = /^[A-Z0-9]{4,12}$/i;
 async function replyLong(ctx: Context, text: string): Promise<void> {
   const limit = 3900;
   if (text.length <= limit) {
-    await ctx.reply(text);
+    await ctx.reply(formatTelegramHtml(text), { parse_mode: "HTML" });
     return;
   }
   let remaining = text;
   while (remaining.length > limit) {
     let cut = remaining.lastIndexOf("\n", limit);
     if (cut < 500) cut = limit;
-    await ctx.reply(remaining.slice(0, cut));
+    await ctx.reply(formatTelegramHtml(remaining.slice(0, cut)), { parse_mode: "HTML" });
     remaining = remaining.slice(cut).replace(/^\n+/, "");
   }
-  if (remaining) await ctx.reply(remaining);
+  if (remaining) await ctx.reply(formatTelegramHtml(remaining), { parse_mode: "HTML" });
+}
+
+function formatTelegramHtml(text: string): string {
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return escaped.replace(/(booking code:\s*)([A-Z0-9]{4,12})/gi, "$1<code>$2</code>");
 }
 
 function odds(legs: SportyBetBookingLeg[]): number | null {
@@ -237,7 +242,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
 
   if (command === "/inspect" || (args.length === 0 && codePattern.test(command.slice(1)))) {
     const booking = await loadCode(command === "/inspect" ? args[0] ?? "" : command.slice(1));
-    await ctx.reply(describe(booking));
+    await replyLong(ctx, describe(booking));
     return;
   }
 
@@ -251,7 +256,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
       seen.add(key);
       return true;
     });
-    await ctx.reply(await createCode(legs));
+    await replyLong(ctx, await createCode(legs));
     return;
   }
 
@@ -292,7 +297,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
       const next = odds([...chosen, leg]);
       if (!chosen.length || (next != null && next <= target)) chosen.push(leg);
     }
-    await ctx.reply(await createCode(chosen));
+    await replyLong(ctx, await createCode(chosen));
     return;
   }
 
@@ -300,12 +305,12 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
     const booking = await loadCode(args[0] ?? "");
     const count = Math.min(Math.max(Number(args[1] ?? 3), 1), booking.legs.length);
     const shuffled = [...booking.legs].sort(() => Math.random() - 0.5).slice(0, count);
-    await ctx.reply(await createCode(shuffled));
+    await replyLong(ctx, await createCode(shuffled));
     return;
   }
 
   if (command === "/random-target") {
-    await ctx.reply(await randomTargetTicket(Number(args[0])));
+    await replyLong(ctx, await randomTargetTicket(Number(args[0])));
     return;
   }
 
@@ -323,7 +328,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
         return !haystack.toLowerCase().includes(query);
       });
     }
-    await ctx.reply(await createCode(legs));
+    await replyLong(ctx, await createCode(legs));
     return;
   }
 
