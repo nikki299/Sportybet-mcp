@@ -16,6 +16,7 @@ const bot = new Bot(token);
 
 const noStake = "\n\nNo wager was placed. This bot only reads and prepares non-staking SportyBet booking codes.";
 const codePattern = /^[A-Z0-9]{4,12}$/i;
+const MAX_TICKET_LEGS = 50;
 
 async function replyLong(ctx: Context, text: string): Promise<void> {
   const limit = 3900;
@@ -80,7 +81,9 @@ async function loadCode(code: string): Promise<SportyBetBooking> {
 
 async function createCode(legs: SportyBetBookingLeg[]): Promise<string> {
   if (!legs.length) throw new Error("The requested operation left no selections.");
+  if (legs.length > MAX_TICKET_LEGS) throw new Error(`SportyBet allows at most ${MAX_TICKET_LEGS} legs per ticket; this request would create ${legs.length}. Narrow the request or split it into multiple tickets.`);
   const booking = await client.createBooking(legs.map(selection));
+  if (booking.legs.length > MAX_TICKET_LEGS) throw new Error(`SportyBet returned an over-limit ticket (${booking.legs.length} legs), so it was not presented as valid.`);
   return `${describe(booking)}\n\nNew booking code: ${booking.shareCode}\nShare URL: ${booking.shareURL}${noStake}`;
 }
 
@@ -147,8 +150,8 @@ async function requestedMarketTicket(leagueQuery: string, marketQuery: string): 
 
 async function randomTargetTicket(target: number, requestedLegs?: number): Promise<string> {
   if (!Number.isFinite(target) || target <= 1 || target > 10000) throw new Error("Target odds must be between 1 and 10000.");
-  if (requestedLegs != null && (!Number.isInteger(requestedLegs) || requestedLegs < 2 || requestedLegs > 200)) {
-    throw new Error("The number of legs must be a whole number between 2 and 200.");
+  if (requestedLegs != null && (!Number.isInteger(requestedLegs) || requestedLegs < 2 || requestedLegs > MAX_TICKET_LEGS)) {
+    throw new Error(`The number of legs must be a whole number between 2 and ${MAX_TICKET_LEGS}, because SportyBet allows at most ${MAX_TICKET_LEGS} legs per ticket.`);
   }
   const fixtures = (await client.getFixtures({ timelineHours: 168, maxPages: 10 })).filter(
     (fixture) => fixture.matchStatus === "Not start" && fixture.startTimeMs > Date.now(),
@@ -179,6 +182,7 @@ async function randomTargetTicket(target: number, requestedLegs?: number): Promi
     throw new Error(`Could not find a ${legCount}-leg ticket within about 10% of ${target} combined odds. No ticket was created.`);
   }
   const created = await client.createBooking(best);
+  if (created.legs.length !== legCount) throw new Error(`SportyBet returned ${created.legs.length} legs instead of the requested ${legCount}; no matching ticket was presented.`);
   return `RANDOM ${legCount}-LEG BETSLIP TARGET ${target}\n${describe(created)}\n\nThis was selected randomly from live upcoming SportyBet markets. The requested leg count was enforced; actual odds may differ if prices move.${noStake}`;
 }
 
@@ -232,7 +236,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
       "/trim CODE 20 — trim toward a target combined odds",
       "/remove CODE team=NAME|market=TEXT|date=YYYY-MM-DD|first|last",
       "/random CODE 3 — choose random legs",
-      "/random-target 20 10 — build exactly 10 legs near 20 combined odds; any practical count may be requested",
+      "/random-target 20 10 — build exactly 10 legs near 20 combined odds; SportyBet allows up to 50 legs",
       "/market CODE Over 2.5 — change legs to an available market",
       "/markets [TEXT] — list matching football markets",
       "/research all — build conservative, balanced, and high-odds tickets from today's live games",
