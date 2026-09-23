@@ -313,6 +313,60 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
   throw new Error("Unknown command. Send /help for available commands.");
 }
 
+function extractBookingCodes(text: string): string[] {
+  return [...new Set((text.toUpperCase().match(/\b[A-Z0-9]{4,12}\b/g) ?? []).filter((value) => !["BUILD", "RANDOM", "BETSLIP", "AROUND", "ODDS", "TODAY", "TICKET", "SPLIT", "COMBINE", "REMOVE", "MARKET", "CHANGE", "TARGET", "FIRST", "LAST", "INTO", "WITH", "FROM"].includes(value)))];
+}
+
+async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolean> {
+  const lower = text.toLowerCase();
+  const codes = extractBookingCodes(text);
+  if (/(what.?s inside|show|inspect|read|explain|details)/.test(lower) && codes[0]) {
+    await handleCommand(ctx, `/inspect ${codes[0]}`);
+    return true;
+  }
+  if (/(split|safer slips|divide)/.test(lower) && codes[0]) {
+    const count = Number((lower.match(/\b([23])\s*(?:slips?|tickets?|parts?)/) ?? [])[1] ?? 2);
+    await handleCommand(ctx, `/split ${codes[0]} ${count}`);
+    return true;
+  }
+  if (/(regroup|group|organize|sort)/.test(lower) && codes[0]) {
+    const mode = /league/.test(lower) ? "league" : /kickoff|kick.off|time/.test(lower) ? "kickoff" : "date";
+    await handleCommand(ctx, `/regroup ${codes[0]} ${mode}`);
+    return true;
+  }
+  if (/(combine|merge|join)/.test(lower) && codes.length >= 2) {
+    await handleCommand(ctx, `/combine ${codes.slice(0, 3).join(" ")}`);
+    return true;
+  }
+  if (/(trim|cut|reduce|bring).*odds|odds.*(trim|cut|reduce|target)/.test(lower) && codes[0]) {
+    const target = (lower.match(/(?:odds|target)\s*(?:of|to|around|at)?\s*(\d+(?:\.\d+)?)/) ?? [])[1];
+    if (target) {
+      await handleCommand(ctx, `/trim ${codes[0]} ${target}`);
+      return true;
+    }
+  }
+  if (/(remove|delete|drop|take out)/.test(lower) && codes[0]) {
+    const filter = /first/.test(lower) ? "first" : /last/.test(lower) ? "last" : /market/.test(lower) ? `market=${text.replace(/.*market\s+(?:called\s+)?/i, "")}` : /date/.test(lower) ? `date=${(text.match(/\d{4}-\d{2}-\d{2}/) ?? [""])[0]}` : `team=${text.replace(/.*(?:team|game|match)\s+(?:called\s+)?/i, "")}`;
+    await handleCommand(ctx, `/remove ${codes[0]} ${filter}`);
+    return true;
+  }
+  if (/(random|randomly).*(pick|select|choose|games|legs)/.test(lower) && codes[0]) {
+    const count = Number((lower.match(/\b(\d+)\s*(?:games?|legs?|selections?)/) ?? [])[1] ?? 3);
+    await handleCommand(ctx, `/random ${codes[0]} ${count}`);
+    return true;
+  }
+  if (/(change|switch|convert|replace).*(market|markets)/.test(lower) && codes[0]) {
+    const target = text.replace(/.*?(?:to|into)\s+/i, "").trim();
+    await handleCommand(ctx, `/market ${codes[0]} ${target}`);
+    return true;
+  }
+  if (/(research|today|fresh|new tickets?|build.*from scratch)/.test(lower) && !codes[0]) {
+    await handleCommand(ctx, "/research all");
+    return true;
+  }
+  return false;
+}
+
 bot.command(["start", "help", "today", "research", "inspect", "combine", "split", "regroup", "trim", "random", "random-target", "remove", "market"], async (ctx) => {
   try {
     await handleCommand(ctx, ctx.message?.text ?? "");
@@ -337,6 +391,12 @@ bot.on("message:text", async (ctx) => {
       } catch (error) {
         await ctx.reply(`Could not build that random betslip: ${error instanceof Error ? error.message : String(error)}${noStake}`);
       }
+      return;
+    }
+    try {
+      if (await handleNaturalLanguage(ctx, text)) return;
+    } catch (error) {
+      await ctx.reply(`Could not complete that ticket request: ${error instanceof Error ? error.message : String(error)}${noStake}`);
       return;
     }
     await ctx.reply("Send a SportyBet booking code or /help for commands.");
