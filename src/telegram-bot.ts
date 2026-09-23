@@ -175,6 +175,26 @@ async function randomTargetTicket(target: number): Promise<string> {
   return `RANDOM BETSLIP TARGET ${target}\n${describe(created)}\n\nThis was selected randomly from live upcoming SportyBet markets. Actual combined odds may differ if prices move.${noStake}`;
 }
 
+async function randomMarketTicket(marketQuery: string): Promise<string> {
+  const terms = marketQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  const fixtures = (await client.getFixtures({ timelineHours: 168, maxPages: 10 })).filter(
+    (fixture) => fixture.matchStatus === "Not start" && fixture.startTimeMs > Date.now(),
+  );
+  const candidates = fixtures.flatMap((fixture) => fixture.markets.flatMap((market) => market.outcomes
+    .filter((outcome) => outcome.isActive && Number.isFinite(outcome.odds) && outcome.odds > 1)
+    .filter((outcome) => {
+      const label = `${market.marketName} ${outcome.outcomeName}`.toLowerCase();
+      return terms.every((term) => label.includes(term));
+    })
+    .map((outcome) => ({ eventId: fixture.eventId, marketId: market.marketId, outcomeId: outcome.outcomeId, specifier: market.specifier, odds: outcome.odds }))));
+  const byEvent = new Map<string, SportyBetSelection>();
+  for (const candidate of candidates) if (!byEvent.has(candidate.eventId)) byEvent.set(candidate.eventId, candidate);
+  const chosen = [...byEvent.values()].sort(() => Math.random() - 0.5).slice(0, 8);
+  if (!chosen.length) throw new Error(`No upcoming SportyBet selections matched ${marketQuery}.`);
+  const created = await client.createBooking(chosen);
+  return `RANDOM ${marketQuery.toUpperCase()} TICKET\n${describe(created)}\n\nSelected randomly from current upcoming SportyBet markets.${noStake}`;
+}
+
 function chunks<T>(items: T[], count: number): T[][] {
   const result: T[][] = Array.from({ length: count }, () => []);
   items.forEach((item, index) => result[index % count]!.push(item));
@@ -354,7 +374,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
 }
 
 function extractBookingCodes(text: string): string[] {
-  const words = new Set(["A", "AN", "AND", "ALL", "AROUND", "BETSLIP", "BUILD", "CHANGE", "CHOOSE", "COMBINE", "COMBINED", "DELETE", "DIVIDE", "DROP", "EXPLAIN", "FIRST", "FOR", "FRESH", "FROM", "GAMES", "GROUP", "HELP", "IN", "INSIDE", "INTO", "LAST", "MAKE", "MARKET", "ME", "MERGE", "NEW", "ODDS", "OF", "ON", "OR", "PICK", "PLEASE", "RANDOM", "RANDOMLY", "READ", "REGROUP", "REMOVE", "RESEARCH", "SAFER", "SCRATCH", "SELECT", "SHOW", "SLIPS", "SPLIT", "SWITCH", "TARGET", "THE", "THIS", "TICKET", "TODAY", "TODAYS", "TO", "TRIM", "WHAT", "WHATS", "WHAT'S", "WITH"]);
+  const words = new Set(["A", "AN", "AND", "ALL", "AROUND", "BETSLIP", "BUILD", "CHANGE", "CHOOSE", "COMBINE", "COMBINED", "CONNER", "CORNER", "CORNERS", "DELETE", "DIVIDE", "DROP", "EXPLAIN", "FIRST", "FOR", "FRESH", "FROM", "GAMES", "GROUP", "HELP", "IN", "INSIDE", "INTO", "LAST", "MAKE", "MARKET", "ME", "MERGE", "NEW", "ODDS", "OF", "ON", "OR", "OVER", "PICK", "PLEASE", "RANDOM", "RANDOMLY", "READ", "REGROUP", "REMOVE", "RESEARCH", "SAFER", "SCAN", "SCRATCH", "SELECT", "SHOW", "SLIPS", "SPORTYBET", "SPLIT", "SWITCH", "TARGET", "THE", "THIS", "THROUGH", "TICKET", "TODAY", "TODAYS", "TO", "TRIM", "UNDER", "WHAT", "WHATS", "WHAT'S", "WITH"]);
   return [...new Set((text.toUpperCase().match(/\b[A-Z0-9]{4,12}\b/g) ?? []).filter((value) => !words.has(value)))];
 }
 
@@ -394,6 +414,10 @@ async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolea
   if (/(random|randomly).*(pick|select|choose|games|legs)/.test(lower) && codes[0]) {
     const count = Number((lower.match(/\b(\d+)\s*(?:games?|legs?|selections?)/) ?? [])[1] ?? 3);
     await handleCommand(ctx, `/random ${codes[0]} ${count}`);
+    return true;
+  }
+  if (!codes[0] && /random|build|make|scan/.test(lower) && /over\s+(?:corner|corners|conner)/.test(lower)) {
+    await replyLong(ctx, await randomMarketTicket("over corner"));
     return true;
   }
   if (/(change|switch|convert|replace).*(market|markets)/.test(lower) && codes[0]) {
@@ -453,6 +477,14 @@ bot.on("message:text", async (ctx) => {
       await ctx.reply(`Could not read that booking code: ${error instanceof Error ? error.message : String(error)}${noStake}`);
     }
   } else {
+    if (/random|build|make|scan/.test(text.toLowerCase()) && /over\s+(?:corner|corners|conner)/.test(text.toLowerCase())) {
+      try {
+        await replyLong(ctx, await randomMarketTicket("over corner"));
+      } catch (error) {
+        await ctx.reply(`Could not build that Over-corners ticket: ${error instanceof Error ? error.message : String(error)}${noStake}`);
+      }
+      return;
+    }
     if (process.env.GEMINI_API_KEY?.trim()) {
       try {
         if (await handleWithAgent(ctx, text)) return;
