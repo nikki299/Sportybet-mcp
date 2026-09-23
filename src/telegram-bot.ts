@@ -314,7 +314,8 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
 }
 
 function extractBookingCodes(text: string): string[] {
-  return [...new Set((text.toUpperCase().match(/\b[A-Z0-9]{4,12}\b/g) ?? []).filter((value) => !["BUILD", "RANDOM", "BETSLIP", "AROUND", "ODDS", "TODAY", "TICKET", "SPLIT", "COMBINE", "REMOVE", "MARKET", "CHANGE", "TARGET", "FIRST", "LAST", "INTO", "WITH", "FROM"].includes(value)))];
+  const words = new Set(["A", "AN", "AND", "ALL", "AROUND", "BETSLIP", "BUILD", "CHANGE", "CHOOSE", "COMBINE", "COMBINED", "DELETE", "DIVIDE", "DROP", "EXPLAIN", "FIRST", "FOR", "FRESH", "FROM", "GAMES", "GROUP", "HELP", "IN", "INSIDE", "INTO", "LAST", "MAKE", "MARKET", "ME", "MERGE", "NEW", "ODDS", "OF", "ON", "OR", "PICK", "PLEASE", "RANDOM", "RANDOMLY", "READ", "REGROUP", "REMOVE", "RESEARCH", "SAFER", "SCRATCH", "SELECT", "SHOW", "SLIPS", "SPLIT", "SWITCH", "TARGET", "THE", "THIS", "TICKET", "TODAY", "TODAYS", "TO", "TRIM", "WHAT", "WHATS", "WHAT'S", "WITH"]);
+  return [...new Set((text.toUpperCase().match(/\b[A-Z0-9]{4,12}\b/g) ?? []).filter((value) => !words.has(value)))];
 }
 
 async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolean> {
