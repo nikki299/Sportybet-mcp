@@ -145,8 +145,11 @@ async function requestedMarketTicket(leagueQuery: string, marketQuery: string): 
   return `REQUESTED TICKET\nLeague: ${leagueQuery}\nMarket: ${marketQuery}\n${describe(created)}\n\n${missing.length ? `Market unavailable for ${missing.length} game(s): ${missing.slice(0, 5).join(", ")}` : "The requested market was found for every matched game."}${noStake}`;
 }
 
-async function randomTargetTicket(target: number): Promise<string> {
+async function randomTargetTicket(target: number, requestedLegs?: number): Promise<string> {
   if (!Number.isFinite(target) || target <= 1 || target > 10000) throw new Error("Target odds must be between 1 and 10000.");
+  if (requestedLegs != null && (!Number.isInteger(requestedLegs) || requestedLegs < 2 || requestedLegs > 30)) {
+    throw new Error("The number of legs must be a whole number between 2 and 30.");
+  }
   const fixtures = (await client.getFixtures({ timelineHours: 168, maxPages: 10 })).filter(
     (fixture) => fixture.matchStatus === "Not start" && fixture.startTimeMs > Date.now(),
   );
@@ -156,14 +159,14 @@ async function randomTargetTicket(target: number): Promise<string> {
       .map((outcome) => ({ eventId: fixture.eventId, marketId: market.marketId, outcomeId: outcome.outcomeId, specifier: market.specifier, odds: outcome.odds })));
     return options.length ? options[Math.floor(Math.random() * options.length)] : null;
   }).filter((value): value is NonNullable<typeof value> => value != null);
-  if (candidates.length < 2) throw new Error("SportyBet returned too few suitable upcoming games.");
+  const legCount = requestedLegs ?? Math.min(Math.max(2, Math.floor(Math.random() * 8) + 2), candidates.length);
+  if (candidates.length < legCount) throw new Error(`SportyBet returned only ${candidates.length} suitable upcoming games, so I cannot build the requested ${legCount}-leg ticket.`);
 
   let best: SportyBetSelection[] = [];
   let bestDistance = Number.POSITIVE_INFINITY;
   for (let attempt = 0; attempt < 3000; attempt++) {
     const shuffled = [...candidates].sort(() => Math.random() - 0.5);
-    const count = Math.min(Math.max(2, Math.floor(Math.random() * 8) + 2), shuffled.length);
-    const sample = shuffled.slice(0, count);
+    const sample = shuffled.slice(0, legCount);
     const value = calcCombinedOdds(sample.map((item) => item.odds ?? 0));
     const distance = Math.abs(Math.log(value / target));
     if (distance < bestDistance) {
@@ -172,9 +175,11 @@ async function randomTargetTicket(target: number): Promise<string> {
     }
     if (value >= target * 0.9 && value <= target * 1.1) break;
   }
-  if (!best.length) throw new Error("Could not find a random ticket near the requested target.");
+  if (!best.length || best.length !== legCount || bestDistance > Math.abs(Math.log(1.1))) {
+    throw new Error(`Could not find a ${legCount}-leg ticket within about 10% of ${target} combined odds. No ticket was created.`);
+  }
   const created = await client.createBooking(best);
-  return `RANDOM BETSLIP TARGET ${target}\n${describe(created)}\n\nThis was selected randomly from live upcoming SportyBet markets. Actual combined odds may differ if prices move.${noStake}`;
+  return `RANDOM ${legCount}-LEG BETSLIP TARGET ${target}\n${describe(created)}\n\nThis was selected randomly from live upcoming SportyBet markets. The requested leg count was enforced; actual odds may differ if prices move.${noStake}`;
 }
 
 async function randomMarketTicket(marketQuery: string): Promise<string> {
@@ -341,7 +346,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
   }
 
   if (command === "/random-target") {
-    await replyLong(ctx, await randomTargetTicket(Number(args[0])));
+    await replyLong(ctx, await randomTargetTicket(Number(args[0]), args[1] ? Number(args[1]) : undefined));
     return;
   }
 
@@ -430,7 +435,8 @@ async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolea
   if (!codes[0] && /(?:random|randomly|build|make).*(?:around|near|target)?.*(?:odds?)?\s*\d+(?:\.\d+)?/.test(lower)) {
     const target = (lower.match(/(?:around|near|target|odds?)\s*(?:of|at|to)?\s*(\d+(?:\.\d+)?)/) ?? lower.match(/(?:random|randomly|build|make)[^\d]{0,30}(\d+(?:\.\d+)?)/) ?? [])[1];
     if (target) {
-      await replyLong(ctx, await randomTargetTicket(Number(target)));
+      const legs = Number((lower.match(/\b(\d+)\s*(?:-?leg|games?|picks?|selections?)/) ?? [])[1]);
+      await replyLong(ctx, await randomTargetTicket(Number(target), Number.isFinite(legs) ? legs : undefined));
       return true;
     }
   }
@@ -479,7 +485,7 @@ async function handleWithAgent(ctx: Context, text: string): Promise<boolean> {
     case "trim": await handleCommand(ctx, `/trim ${intent.codes[0] ?? ""} ${intent.target}`); return true;
     case "remove": await handleCommand(ctx, `/remove ${intent.codes[0] ?? ""} ${intent.filter || "first"}`); return true;
     case "random_existing": await handleCommand(ctx, `/random ${intent.codes[0] ?? ""} ${intent.count || 3}`); return true;
-    case "random_target": await handleCommand(ctx, `/random-target ${intent.target}`); return true;
+    case "random_target": await handleCommand(ctx, `/random-target ${intent.target}${intent.legs ? ` ${intent.legs}` : ""}`); return true;
     case "market": await handleCommand(ctx, `/market ${intent.codes[0] ?? ""} ${intent.market}`); return true;
     case "league_market": await requestedMarketTicket(intent.league, intent.market).then((result) => replyLong(ctx, result)); return true;
     case "random_market": await replyLong(ctx, await randomMarketTicket(intent.market)); return true;
