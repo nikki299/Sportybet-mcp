@@ -411,7 +411,7 @@ bot.on("message:text", async (ctx) => {
       await ctx.reply(`Could not read that booking code: ${error instanceof Error ? error.message : String(error)}${noStake}`);
     }
   } else {
-    const targetMatch = /(?:random|randomly|build|make).*?(?:around|near|target).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text) ?? /(?:random|randomly).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text);
+    const targetMatch = /(?:random|randomly|build|make).*?(?:around|near|target).*?(\d+(?:\.\d+)?)(?:\s*odds?)?/i.exec(text) ?? /(?:random|randomly).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text);
     if (targetMatch?.[1]) {
       try {
         await ctx.reply(await randomTargetTicket(Number(targetMatch[1])));
