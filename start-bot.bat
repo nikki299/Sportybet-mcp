@@ -12,8 +12,8 @@ if not exist package.json (
 
 if not exist .env (
   copy /Y .env.example .env >nul
-  echo A local .env file was created.
-  echo Add your NEW BotFather token on the TELEGRAM_BOT_TOKEN line, save it, then return here.
+  echo A local settings file was created.
+  echo Add your BotFather token on the TELEGRAM_BOT_TOKEN line, save it, then return here.
   notepad .env
   pause
 )
