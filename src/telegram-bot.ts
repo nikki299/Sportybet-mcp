@@ -4,6 +4,7 @@ import { SportyBetClient } from "./client.js";
 import type { SportyBetBooking, SportyBetBookingLeg, SportyBetSelection } from "./types.js";
 import { calcCombinedOdds } from "./odds.js";
 import { interpretWithGemini } from "./agent.js";
+import { BROAD_FOOTBALL_MARKET_IDS, marketSuggestions, resolveMarketQuery } from "./marketResolver.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
 if (!token) {
@@ -127,8 +128,9 @@ async function researchTicket(style: ResearchStyle): Promise<string> {
 
 async function requestedMarketTicket(leagueQuery: string, marketQuery: string): Promise<string> {
   const cfg = loadConfig();
+  marketQuery = resolveMarketQuery(marketQuery);
   const bounds = todayBounds(cfg.tzOffsetMinutes);
-  const fixtures = (await client.getFixtures({ timelineHours: 48, maxPages: 10 })).filter((fixture) =>
+  const fixtures = (await client.getFixtures({ marketIds: BROAD_FOOTBALL_MARKET_IDS, timelineHours: 48, maxPages: 10 })).filter((fixture) =>
     fixture.startTimeMs >= bounds.start && fixture.startTimeMs < bounds.end && fixture.matchStatus === "Not start" && fixture.league.toLowerCase().includes(leagueQuery.toLowerCase()),
   );
   const selections: SportyBetSelection[] = [];
@@ -176,8 +178,9 @@ async function randomTargetTicket(target: number): Promise<string> {
 }
 
 async function randomMarketTicket(marketQuery: string): Promise<string> {
-  const terms = marketQuery.toLowerCase().split(/\s+/).filter(Boolean);
-  const fixtures = (await client.getFixtures({ timelineHours: 168, maxPages: 10 })).filter(
+  const resolvedMarket = resolveMarketQuery(marketQuery);
+  const terms = resolvedMarket.toLowerCase().split(/\s+/).filter(Boolean);
+  const fixtures = (await client.getFixtures({ marketIds: BROAD_FOOTBALL_MARKET_IDS, timelineHours: 168, maxPages: 10 })).filter(
     (fixture) => fixture.matchStatus === "Not start" && fixture.startTimeMs > Date.now(),
   );
   const candidates = fixtures.flatMap((fixture) => fixture.markets.flatMap((market) => market.outcomes
@@ -190,9 +193,9 @@ async function randomMarketTicket(marketQuery: string): Promise<string> {
   const byEvent = new Map<string, SportyBetSelection>();
   for (const candidate of candidates) if (!byEvent.has(candidate.eventId)) byEvent.set(candidate.eventId, candidate);
   const chosen = [...byEvent.values()].sort(() => Math.random() - 0.5).slice(0, 8);
-  if (!chosen.length) throw new Error(`No upcoming SportyBet selections matched ${marketQuery}.`);
+  if (!chosen.length) throw new Error(`No upcoming SportyBet selections matched ${resolvedMarket}. Try /markets ${marketQuery} to see available names.`);
   const created = await client.createBooking(chosen);
-  return `RANDOM ${marketQuery.toUpperCase()} TICKET\n${describe(created)}\n\nSelected randomly from current upcoming SportyBet markets.${noStake}`;
+  return `RANDOM ${resolvedMarket.toUpperCase()} TICKET\n${describe(created)}\n\nSelected randomly from current upcoming SportyBet markets.${noStake}`;
 }
 
 function chunks<T>(items: T[], count: number): T[][] {
@@ -226,6 +229,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
       "/random CODE 3 — choose random legs",
       "/random-target 20 — randomly build a live ticket near 20 combined odds",
       "/market CODE Over 2.5 — change legs to an available market",
+      "/markets [TEXT] — list matching football markets",
       "/research all — build conservative, balanced, and high-odds tickets from today's live games",
       "/today — show current upcoming fixtures",
       "",
@@ -239,6 +243,13 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
     const fixtures = await client.getFixtures({ timelineHours: 48, maxPages: 3 });
     const lines = fixtures.slice(0, 20).map((fixture, index) => `${index + 1}. ${fixture.homeTeam} vs ${fixture.awayTeam} — ${fixture.startTime} — ${fixture.league}`);
     await ctx.reply(["Upcoming SportyBet fixtures", "", ...(lines.length ? lines : ["No upcoming fixtures returned."]), noStake].join("\n"));
+    return;
+  }
+
+  if (command === "/markets") {
+    const query = args.join(" ");
+    const suggestions = marketSuggestions(query, 30);
+    await replyLong(ctx, [`Available market suggestions${query ? ` for “${query}”` : ""}:`, "", ...suggestions.map((item, index) => `${index + 1}. ${item}`), "", "Shorthand: GG, 1X, X2, DNB, HT/FT home/home, home team over 1.5", noStake].join("\n"));
     return;
   }
 
@@ -354,7 +365,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
 
   if (command === "/market") {
     const booking = await loadCode(args[0] ?? "");
-    const target = args.slice(1).join(" ").toLowerCase();
+    const target = resolveMarketQuery(args.slice(1).join(" ")).toLowerCase();
     if (!target) throw new Error("Usage: /market CODE MARKET, e.g. /market ABC123 Over 2.5");
     const changed: SportyBetSelection[] = [];
     const failures: string[] = [];
@@ -420,6 +431,16 @@ async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolea
     await replyLong(ctx, await randomMarketTicket("over corner"));
     return true;
   }
+  if (!codes[0] && /(?:research|find|build|make|pick|select)/.test(lower) && /\b(?:gg|btts|1x|x2|dnb|draw no bet|ht\/?ft\s+home\/home|home team (?:over|under)\s+\d)/.test(lower)) {
+    const shorthand = lower.match(/\b(?:gg|btts|1x|x2|dnb|draw no bet|ht\/?ft\s+home\/home|home team (?:over|under)\s+\d+(?:\.\d+)?)\b/)?.[0];
+    if (shorthand) {
+      const leagueMatch = lower.match(/(?:today'?s?|today)\s+(.+?)\s+(?:games?|matches?)/);
+      if (leagueMatch?.[1]) {
+        await replyLong(ctx, await requestedMarketTicket(leagueMatch[1].trim(), shorthand));
+        return true;
+      }
+    }
+  }
   if (/(change|switch|convert|replace).*(market|markets)/.test(lower) && codes[0]) {
     const target = text.replace(/.*?(?:to|into)\s+/i, "").trim();
     await handleCommand(ctx, `/market ${codes[0]} ${target}`);
@@ -460,7 +481,7 @@ async function handleWithAgent(ctx: Context, text: string): Promise<boolean> {
   }
 }
 
-bot.command(["start", "help", "today", "research", "inspect", "combine", "split", "regroup", "trim", "random", "random-target", "remove", "market"], async (ctx) => {
+bot.command(["start", "help", "today", "markets", "research", "inspect", "combine", "split", "regroup", "trim", "random", "random-target", "remove", "market"], async (ctx) => {
   try {
     await handleCommand(ctx, ctx.message?.text ?? "");
   } catch (error) {
