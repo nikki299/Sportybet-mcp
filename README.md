@@ -268,3 +268,16 @@ Sports betting involves financial risk. This software provides data and
 prepares betslips only; it performs no wagering, makes no guarantees, and its
 combined-odds math is arithmetic, not prediction. Use at your own risk and
 bet responsibly.
+
+## 15. Telegram bot (local Windows mode)
+
+The project includes an optional Telegram polling bot for inspecting and transforming SportyBet booking codes. It only prepares non-staking booking codes; it never places, submits, or stakes a wager.
+
+1. Create a bot with Telegram's official `@BotFather` using `/newbot` and keep the token private.
+2. Copy `.env.example` to `.env` and set `TELEGRAM_BOT_TOKEN=...` in the local `.env` file. Never commit `.env`.
+3. Install and build with `npm ci` and `npm run build`.
+4. Start the bot with `npm run bot`. Keep the terminal open while you use the bot. Stop it with `Ctrl+C`.
+
+Available commands include `/inspect CODE`, `/split CODE 2`, `/regroup CODE league`, `/combine CODE1 CODE2`, `/trim CODE 20`, `/remove CODE team=NAME`, `/random CODE 3`, `/market CODE Over 2.5`, and `/today`. Sending a booking code by itself inspects it. The bot validates selections against current SportyBet data before creating any replacement booking code.
+
+The first version uses SportyBet's current fixtures, markets, and odds. It does not invent form, head-to-head, injury, or live-result information; those research fields require a separately verified sports-data provider and can be added later.
