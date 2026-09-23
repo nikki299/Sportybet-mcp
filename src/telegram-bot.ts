@@ -500,6 +500,10 @@ bot.on("message:text", async (ctx) => {
       await ctx.reply(`Could not read that booking code: ${error instanceof Error ? error.message : String(error)}${noStake}`);
     }
   } else {
+    if (/^(hi|hello|hey|good morning|good afternoon|good evening|help)$/i.test(text)) {
+      await handleCommand(ctx, "/help");
+      return;
+    }
     if (!process.env.GEMINI_API_KEY?.trim()) {
       await ctx.reply(`Gemini is not enabled, so I will not guess or build a ticket. Add GEMINI_API_KEY and restart the bot before sending free-form requests.${noStake}`);
       return;
@@ -507,7 +511,11 @@ bot.on("message:text", async (ctx) => {
     try {
       if (await handleWithAgent(ctx, text)) return;
     } catch (error) {
-      await ctx.reply(`Gemini could not safely interpret this request, so no ticket was created. ${error instanceof Error ? error.message : String(error)}${noStake}`);
+      const message = error instanceof Error ? error.message : String(error);
+      const quota = /HTTP 429|quota|rate.?limit|exceeded/i.test(message);
+      await ctx.reply(quota
+        ? `Gemini is temporarily unavailable because its API quota or rate limit has been reached. No ticket was created. Please wait for the quota to reset or use a Gemini API key with available quota.${noStake}`
+        : `Gemini could not safely interpret this request, so no ticket was created. Please try again with the exact league, market, number of picks, or target odds.${noStake}`);
       return;
     }
     await ctx.reply(`Gemini did not return a usable instruction, so I will not guess. Please specify the action and any exact league, market, number of picks, or target odds.${noStake}`);
