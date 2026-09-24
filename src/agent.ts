@@ -26,6 +26,7 @@ const schema = {
     style: { type: "string", enum: ["all", "conservative", "balanced", "high"] },
   },
   required: ["kind"],
+  additionalProperties: false,
 };
 
 const system = `You are the intent parser for a SportyBet ticket assistant. Return JSON only matching the schema. Never invent booking codes: copy only codes explicitly present in the user message. The assistant only prepares non-staking share codes and never places bets. Interpret natural language precisely. Use random_target for requests like “build me a random betslip around 20” even when the user omits the word odds. Use league_market for requests like “book today’s Eredivisie games over 2.5”. Use research for today/fresh games when no league and market are specified. For remove, put a concise filter such as first, last, team=Arsenal, market=Over 2.5, or date=2026-09-22. For market, put only the requested target market in market.`;
@@ -43,10 +44,7 @@ export async function interpretWithGemini(text: string): Promise<AgentIntent | n
       generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: schema },
     }),
   });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Gemini agent request failed (HTTP ${response.status}): ${detail.slice(0, 300)}`);
-  }
+  if (!response.ok) throw new Error(`Gemini agent request failed (HTTP ${response.status}).`);
   const body = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
   const raw = body.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!raw) throw new Error("Gemini agent returned no structured intent.");
