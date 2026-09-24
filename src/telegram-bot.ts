@@ -61,48 +61,6 @@ async function createCode(legs: SportyBetBookingLeg[]): Promise<string> {
   return `${describe(booking)}\n\nNew booking code: ${booking.shareCode}\nShare URL: ${booking.shareURL}${noStake}`;
 }
 
-type ResearchStyle = "conservative" | "balanced" | "high";
-
-function todayBounds(tzOffsetMinutes: number): { start: number; end: number } {
-  const now = new Date();
-  const utcToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const start = utcToday - tzOffsetMinutes * 60_000;
-  return { start, end: start + 24 * 60 * 60_000 };
-}
-
-function selectResearchLegs(
-  fixtures: Awaited<ReturnType<SportyBetClient["getFixtures"]>>,
-  style: ResearchStyle,
-): SportyBetSelection[] {
-  const result: SportyBetSelection[] = [];
-  for (const fixture of fixtures) {
-    const candidates = fixture.markets.flatMap((market) => market.outcomes
-      .filter((outcome) => outcome.isActive && Number.isFinite(outcome.odds) && outcome.odds > 1)
-      .map((outcome) => ({ market, outcome })));
-    const preferred = candidates.filter(({ market, outcome }) => {
-      const label = `${market.marketName} ${outcome.outcomeName}`.toLowerCase();
-      if (style === "conservative") return /double chance|draw no bet|1x2/.test(label) && outcome.odds <= 1.8;
-      if (style === "balanced") return /1x2|over\/under|both teams|double chance/.test(label) && outcome.odds <= 2.5;
-      return outcome.odds >= 1.8 && outcome.odds <= 6;
-    }).sort((a, b) => style === "high" ? b.outcome.odds - a.outcome.odds : a.outcome.odds - b.outcome.odds);
-    const pick = preferred[0] ?? candidates.sort((a, b) => a.outcome.odds - b.outcome.odds)[0];
-    if (pick) result.push({ eventId: fixture.eventId, marketId: pick.market.marketId, outcomeId: pick.outcome.outcomeId, specifier: pick.market.specifier, odds: pick.outcome.odds });
-  }
-  return result;
-}
-
-async function researchTicket(style: ResearchStyle): Promise<string> {
-  const cfg = loadConfig();
-  const bounds = todayBounds(cfg.tzOffsetMinutes);
-  const fixtures = (await client.getFixtures({ timelineHours: 48, maxPages: 8 })).filter(
-    (fixture) => fixture.startTimeMs >= bounds.start && fixture.startTimeMs < bounds.end && fixture.matchStatus === "Not start",
-  );
-  const selections = selectResearchLegs(fixtures, style).slice(0, style === "conservative" ? 5 : style === "balanced" ? 8 : 12);
-  if (!selections.length) throw new Error(`No suitable upcoming fixtures were found for the ${style} style today.`);
-  const created = await client.createBooking(selections);
-  return `${style.toUpperCase()} RESEARCH TICKET\n${describe(created)}\n\nSelection method: live SportyBet markets and odds only; this is not a prediction and does not assess form, H2H, injuries, or probability.${noStake}`;
-}
-
 function chunks<T>(items: T[], count: number): T[][] {
   const result: T[][] = Array.from({ length: count }, () => []);
   items.forEach((item, index) => result[index % count]!.push(item));
@@ -133,7 +91,6 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
       "/remove CODE team=NAME|market=TEXT|date=YYYY-MM-DD|first|last",
       "/random CODE 3 — choose random legs",
       "/market CODE Over 2.5 — change legs to an available market",
-      "/research all — build conservative, balanced, and high-odds tickets from today's live games",
       "/today — show current upcoming fixtures",
       "",
       "Fresh form, H2H, injury, and live-result research is not guessed; it will be added when a verified sports-data source is configured.",
@@ -146,24 +103,6 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
     const fixtures = await client.getFixtures({ timelineHours: 48, maxPages: 3 });
     const lines = fixtures.slice(0, 20).map((fixture, index) => `${index + 1}. ${fixture.homeTeam} vs ${fixture.awayTeam} — ${fixture.startTime} — ${fixture.league}`);
     await ctx.reply(["Upcoming SportyBet fixtures", "", ...(lines.length ? lines : ["No upcoming fixtures returned."]), noStake].join("\n"));
-    return;
-  }
-
-  if (command === "/research") {
-    const requested = (args[0] ?? "all").toLowerCase();
-    const styles: ResearchStyle[] = requested === "all" ? ["conservative", "balanced", "high"] : [requested as ResearchStyle];
-    if (styles.some((style) => !["conservative", "balanced", "high"].includes(style))) {
-      throw new Error("Usage: /research all|conservative|balanced|high");
-    }
-    const results: string[] = [];
-    for (const style of styles) {
-      try {
-        results.push(await researchTicket(style));
-      } catch (error) {
-        results.push(`${style.toUpperCase()} RESEARCH TICKET\nNot created: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-    await ctx.reply(results.join("\n\n====================\n\n"));
     return;
   }
 
@@ -275,7 +214,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
   throw new Error("Unknown command. Send /help for available commands.");
 }
 
-bot.command(["start", "help", "today", "research", "inspect", "combine", "split", "regroup", "trim", "random", "remove", "market"], async (ctx) => {
+bot.command(["start", "help", "today", "inspect", "combine", "split", "regroup", "trim", "random", "remove", "market"], async (ctx) => {
   try {
     await handleCommand(ctx, ctx.message?.text ?? "");
   } catch (error) {
