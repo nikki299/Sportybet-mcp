@@ -475,10 +475,8 @@ async function handleWithAgent(ctx: Context, text: string): Promise<boolean> {
     case "random_target": await handleCommand(ctx, `/random-target ${intent.target}`); return true;
     case "market": await handleCommand(ctx, `/market ${intent.codes[0] ?? ""} ${intent.market}`); return true;
     case "league_market": await requestedMarketTicket(intent.league, intent.market).then((result) => replyLong(ctx, result)); return true;
-    case "random_market": await replyLong(ctx, await randomMarketTicket(intent.market)); return true;
     case "research": await handleCommand(ctx, `/research ${intent.style || "all"}`); return true;
     case "help": await handleCommand(ctx, "/help"); return true;
-    case "clarify": await ctx.reply(`I won't guess on this request. ${intent.reason || "Please specify the league, market, number of selections, or target odds."}${noStake}`); return true;
     default: return false;
   }
 }
@@ -500,17 +498,37 @@ bot.on("message:text", async (ctx) => {
       await ctx.reply(`Could not read that booking code: ${error instanceof Error ? error.message : String(error)}${noStake}`);
     }
   } else {
-    if (!process.env.GEMINI_API_KEY?.trim()) {
-      await ctx.reply(`Gemini is not enabled, so I will not guess or build a ticket. Add GEMINI_API_KEY and restart the bot before sending free-form requests.${noStake}`);
+    if (/random|build|make|scan/.test(text.toLowerCase()) && /over\s+(?:corner|corners|conner)/.test(text.toLowerCase())) {
+      try {
+        await replyLong(ctx, await randomMarketTicket("over corner"));
+      } catch (error) {
+        await ctx.reply(`Could not build that Over-corners ticket: ${error instanceof Error ? error.message : String(error)}${noStake}`);
+      }
+      return;
+    }
+    if (process.env.GEMINI_API_KEY?.trim()) {
+      try {
+        if (await handleWithAgent(ctx, text)) return;
+      } catch (error) {
+        console.warn("Structured agent unavailable; using deterministic parser:", error instanceof Error ? error.message : String(error));
+      }
+    }
+    const targetMatch = /(?:random|randomly|build|make).*?(?:around|near|target).*?(\d+(?:\.\d+)?)(?:\s*odds?)?/i.exec(text) ?? /(?:random|randomly).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text);
+    if (targetMatch?.[1]) {
+      try {
+        await replyLong(ctx, await randomTargetTicket(Number(targetMatch[1])));
+      } catch (error) {
+        await ctx.reply(`Could not build that random betslip: ${error instanceof Error ? error.message : String(error)}${noStake}`);
+      }
       return;
     }
     try {
-      if (await handleWithAgent(ctx, text)) return;
+      if (await handleNaturalLanguage(ctx, text)) return;
     } catch (error) {
-      await ctx.reply(`Gemini could not safely interpret this request, so no ticket was created. ${error instanceof Error ? error.message : String(error)}${noStake}`);
+      await ctx.reply(`Could not complete that ticket request: ${error instanceof Error ? error.message : String(error)}${noStake}`);
       return;
     }
-    await ctx.reply(`Gemini did not return a usable instruction, so I will not guess. Please specify the action and any exact league, market, number of picks, or target odds.${noStake}`);
+    await ctx.reply("Send a SportyBet booking code or /help for commands.");
   }
 });
 
