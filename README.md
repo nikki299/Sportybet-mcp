@@ -26,21 +26,6 @@ betting action manually.
 All seven tools were verified live against SportyBet on 2026-08-14
 (a real booking code was created and read back). Nothing is fabricated.
 
-### Telegram bot features
-
-The Windows launcher also starts a Telegram assistant for inspecting, splitting,
-regrouping, combining, trimming, removing, randomizing, and changing markets in
-existing tickets. It can research upcoming football fixtures and create
-non-staking share codes from the broad football market catalogue, including
-totals, handicaps, half-time/full-time, combinations, corners, cards, correct
-score, and related markets returned by SportyBet. Long replies are split safely
-for Telegram and every returned booking code is formatted in monospace.
-
-Common shorthand is normalized: `GG`/`BTTS`, `1X`, `X2`, `DNB`, `HT/FT home/home`,
-and `home team over 1.5`. Use `/markets corner`, `/markets over`, or `/markets`
-to search market names. Gemini is optional; when configured it performs
-structured intent parsing, while the deterministic parser remains the fallback.
-
 ## 2. Architecture
 
 ```
