@@ -44,12 +44,6 @@ to guess-based parsing: if Gemini is unavailable, errors, or returns a
 clarification, no ticket is created. This prevents a vague request from being
 silently converted into an unrelated selection.
 
-The current Telegram routing is **local-first**: common operations, booking
-code manipulation, target-odds tickets, league/market requests, corner
-requests, and supported shorthand are handled without an AI quota. Gemini is
-still available as an optional fallback for wording the local engine cannot
-match. If both layers are unsure, the bot refuses instead of guessing.
-
 ## 2. Architecture
 
 ```

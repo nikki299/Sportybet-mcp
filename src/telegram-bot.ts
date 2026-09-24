@@ -427,13 +427,6 @@ async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolea
     await handleCommand(ctx, `/random ${codes[0]} ${count}`);
     return true;
   }
-  if (!codes[0] && /(?:random|randomly|build|make).*(?:around|near|target)?.*(?:odds?)?\s*\d+(?:\.\d+)?/.test(lower)) {
-    const target = (lower.match(/(?:around|near|target|odds?)\s*(?:of|at|to)?\s*(\d+(?:\.\d+)?)/) ?? lower.match(/(?:random|randomly|build|make)[^\d]{0,30}(\d+(?:\.\d+)?)/) ?? [])[1];
-    if (target) {
-      await replyLong(ctx, await randomTargetTicket(Number(target)));
-      return true;
-    }
-  }
   if (!codes[0] && /random|build|make|scan/.test(lower) && /over\s+(?:corner|corners|conner)/.test(lower)) {
     await replyLong(ctx, await randomMarketTicket("over corner"));
     return true;
@@ -511,25 +504,21 @@ bot.on("message:text", async (ctx) => {
       await handleCommand(ctx, "/help");
       return;
     }
-    try {
-      if (await handleNaturalLanguage(ctx, text)) return;
-    } catch (error) {
-      await ctx.reply(`The local football engine understood the request but SportyBet could not complete it: ${error instanceof Error ? error.message : String(error)}${noStake}`);
+    if (!process.env.GEMINI_API_KEY?.trim()) {
+      await ctx.reply(`Gemini is not enabled, so I will not guess or build a ticket. Add GEMINI_API_KEY and restart the bot before sending free-form requests.${noStake}`);
       return;
     }
-    if (process.env.GEMINI_API_KEY?.trim()) {
-      try {
-        if (await handleWithAgent(ctx, text)) return;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const quota = /HTTP 429|quota|rate.?limit|exceeded/i.test(message);
-        await ctx.reply(quota
-          ? `The local football engine could not match that wording, and Gemini is temporarily out of quota. No ticket was created. Try a more direct request such as “today's Eredivisie games over 2.5” or “random over corners.”${noStake}`
-          : `The local football engine could not match that wording, and Gemini could not safely interpret it. No ticket was created. Please specify the league, market, number of picks, or target odds.${noStake}`);
-        return;
-      }
+    try {
+      if (await handleWithAgent(ctx, text)) return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const quota = /HTTP 429|quota|rate.?limit|exceeded/i.test(message);
+      await ctx.reply(quota
+        ? `Gemini is temporarily unavailable because its API quota or rate limit has been reached. No ticket was created. Please wait for the quota to reset or use a Gemini API key with available quota.${noStake}`
+        : `Gemini could not safely interpret this request, so no ticket was created. Please try again with the exact league, market, number of picks, or target odds.${noStake}`);
+      return;
     }
-    await ctx.reply(`I could not match that request safely. Please specify the action and any exact league, market, number of picks, or target odds. Gemini is optional and was not used for this request.${noStake}`);
+    await ctx.reply(`Gemini did not return a usable instruction, so I will not guess. Please specify the action and any exact league, market, number of picks, or target odds.${noStake}`);
   }
 });
 
