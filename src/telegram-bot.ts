@@ -16,22 +16,6 @@ const bot = new Bot(token);
 const noStake = "\n\nNo wager was placed. This bot only reads and prepares non-staking SportyBet booking codes.";
 const codePattern = /^[A-Z0-9]{4,12}$/i;
 
-async function replyLong(ctx: Context, text: string): Promise<void> {
-  const limit = 3900;
-  if (text.length <= limit) {
-    await ctx.reply(text);
-    return;
-  }
-  let remaining = text;
-  while (remaining.length > limit) {
-    let cut = remaining.lastIndexOf("\n", limit);
-    if (cut < 500) cut = limit;
-    await ctx.reply(remaining.slice(0, cut));
-    remaining = remaining.slice(cut).replace(/^\n+/, "");
-  }
-  if (remaining) await ctx.reply(remaining);
-}
-
 function odds(legs: SportyBetBookingLeg[]): number | null {
   const values = legs.map((leg) => leg.outcome.odds).filter((value) => Number.isFinite(value) && value > 0);
   return values.length === legs.length && values.length > 0 ? calcCombinedOdds(values) : null;
@@ -231,7 +215,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
         results.push(`${style.toUpperCase()} RESEARCH TICKET\nNot created: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-    await replyLong(ctx, results.join("\n\n====================\n\n"));
+    await ctx.reply(results.join("\n\n====================\n\n"));
     return;
   }
 
@@ -261,7 +245,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
     const groups = chunks(booking.legs, count);
     const results: string[] = [];
     for (const [index, group] of groups.entries()) results.push(`Slip ${index + 1}\n${await createCode(group)}`);
-    await replyLong(ctx, results.join("\n\n--------------------\n\n"));
+    await ctx.reply(results.join("\n\n--------------------\n\n"));
     return;
   }
 
@@ -279,7 +263,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
     }
     const results: string[] = [];
     for (const [key, legs] of groups) results.push(`${mode} ${key}\n${await createCode(legs)}`);
-    await replyLong(ctx, results.join("\n\n--------------------\n\n"));
+    await ctx.reply(results.join("\n\n--------------------\n\n"));
     return;
   }
 
@@ -400,7 +384,7 @@ async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolea
     const marketMatch = lower.match(/\b(over\s*\d+(?:\.\d+)?|under\s*\d+(?:\.\d+)?|both teams to score|double chance|draw no bet)\b/);
     const leagueMatch = lower.match(/(?:today'?s?|today)\s+(.+?)\s+(?:games?|matches?)/);
     if (marketMatch?.[1] && leagueMatch?.[1]) {
-      await replyLong(ctx, await requestedMarketTicket(leagueMatch[1].trim(), marketMatch[1].trim()));
+      await ctx.reply(await requestedMarketTicket(leagueMatch[1].trim(), marketMatch[1].trim()));
       return true;
     }
   }
@@ -424,7 +408,7 @@ async function handleWithAgent(ctx: Context, text: string): Promise<boolean> {
     case "random_existing": await handleCommand(ctx, `/random ${intent.codes[0] ?? ""} ${intent.count || 3}`); return true;
     case "random_target": await handleCommand(ctx, `/random-target ${intent.target}`); return true;
     case "market": await handleCommand(ctx, `/market ${intent.codes[0] ?? ""} ${intent.market}`); return true;
-    case "league_market": await requestedMarketTicket(intent.league, intent.market).then((result) => replyLong(ctx, result)); return true;
+    case "league_market": await requestedMarketTicket(intent.league, intent.market).then((result) => ctx.reply(result)); return true;
     case "research": await handleCommand(ctx, `/research ${intent.style || "all"}`); return true;
     case "help": await handleCommand(ctx, "/help"); return true;
     default: return false;
@@ -458,7 +442,7 @@ bot.on("message:text", async (ctx) => {
     const targetMatch = /(?:random|randomly|build|make).*?(?:around|near|target).*?(\d+(?:\.\d+)?)(?:\s*odds?)?/i.exec(text) ?? /(?:random|randomly).*?(\d+(?:\.\d+)?)\s*odds?/i.exec(text);
     if (targetMatch?.[1]) {
       try {
-        await replyLong(ctx, await randomTargetTicket(Number(targetMatch[1])));
+        await ctx.reply(await randomTargetTicket(Number(targetMatch[1])));
       } catch (error) {
         await ctx.reply(`Could not build that random betslip: ${error instanceof Error ? error.message : String(error)}${noStake}`);
       }
