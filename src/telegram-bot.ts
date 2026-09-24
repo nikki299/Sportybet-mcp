@@ -103,24 +103,6 @@ async function researchTicket(style: ResearchStyle): Promise<string> {
   return `${style.toUpperCase()} RESEARCH TICKET\n${describe(created)}\n\nSelection method: live SportyBet markets and odds only; this is not a prediction and does not assess form, H2H, injuries, or probability.${noStake}`;
 }
 
-async function requestedMarketTicket(leagueQuery: string, marketQuery: string): Promise<string> {
-  const cfg = loadConfig();
-  const bounds = todayBounds(cfg.tzOffsetMinutes);
-  const fixtures = (await client.getFixtures({ timelineHours: 48, maxPages: 10 })).filter((fixture) =>
-    fixture.startTimeMs >= bounds.start && fixture.startTimeMs < bounds.end && fixture.matchStatus === "Not start" && fixture.league.toLowerCase().includes(leagueQuery.toLowerCase()),
-  );
-  const selections: SportyBetSelection[] = [];
-  const missing: string[] = [];
-  for (const fixture of fixtures) {
-    const match = fixture.markets.flatMap((market) => market.outcomes.filter((outcome) => outcome.isActive).map((outcome) => ({ market, outcome }))).find(({ market, outcome }) => `${market.marketName} ${outcome.outcomeName}`.toLowerCase().includes(marketQuery.toLowerCase()));
-    if (match) selections.push({ eventId: fixture.eventId, marketId: match.market.marketId, outcomeId: match.outcome.outcomeId, specifier: match.market.specifier, odds: match.outcome.odds });
-    else missing.push(`${fixture.homeTeam} vs ${fixture.awayTeam}`);
-  }
-  if (!selections.length) throw new Error(`No upcoming ${marketQuery} selections were found in ${leagueQuery}.`);
-  const created = await client.createBooking(selections);
-  return `REQUESTED TICKET\nLeague: ${leagueQuery}\nMarket: ${marketQuery}\n${describe(created)}\n\n${missing.length ? `Market unavailable for ${missing.length} game(s): ${missing.slice(0, 5).join(", ")}` : "The requested market was found for every matched game."}${noStake}`;
-}
-
 async function randomTargetTicket(target: number): Promise<string> {
   if (!Number.isFinite(target) || target <= 1 || target > 10000) throw new Error("Target odds must be between 1 and 10000.");
   const fixtures = (await client.getFixtures({ timelineHours: 168, maxPages: 10 })).filter(
@@ -378,14 +360,6 @@ async function handleNaturalLanguage(ctx: Context, text: string): Promise<boolea
     const target = text.replace(/.*?(?:to|into)\s+/i, "").trim();
     await handleCommand(ctx, `/market ${codes[0]} ${target}`);
     return true;
-  }
-  if (!codes[0] && /\b(?:today|today's)\b/.test(lower) && /\b(?:over|under|both teams|double chance|draw no bet)\b/.test(lower)) {
-    const marketMatch = lower.match(/\b(over\s*\d+(?:\.\d+)?|under\s*\d+(?:\.\d+)?|both teams to score|double chance|draw no bet)\b/);
-    const leagueMatch = lower.match(/(?:today'?s?|today)\s+(.+?)\s+(?:games?|matches?)/);
-    if (marketMatch?.[1] && leagueMatch?.[1]) {
-      await ctx.reply(await requestedMarketTicket(leagueMatch[1].trim(), marketMatch[1].trim()));
-      return true;
-    }
   }
   if (/(research|today|fresh|new tickets?|build.*from scratch)/.test(lower) && !codes[0]) {
     await handleCommand(ctx, "/research all");
