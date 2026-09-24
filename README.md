@@ -50,10 +50,6 @@ requests, and supported shorthand are handled without an AI quota. Gemini is
 still available as an optional fallback for wording the local engine cannot
 match. If both layers are unsure, the bot refuses instead of guessing.
 
-Every Telegram ticket-creation path enforces SportyBet's maximum of **50 legs
-per ticket**. Explicit counts are preserved: a request for 20 legs must return
-20 legs or a clear failure, never a smaller silent substitute.
-
 ## 2. Architecture
 
 ```
