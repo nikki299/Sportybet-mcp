@@ -147,8 +147,8 @@ async function requestedMarketTicket(leagueQuery: string, marketQuery: string): 
 
 async function randomTargetTicket(target: number, requestedLegs?: number): Promise<string> {
   if (!Number.isFinite(target) || target <= 1 || target > 10000) throw new Error("Target odds must be between 1 and 10000.");
-  if (requestedLegs != null && (!Number.isInteger(requestedLegs) || requestedLegs < 2 || requestedLegs > 200)) {
-    throw new Error("The number of legs must be a whole number between 2 and 200.");
+  if (requestedLegs != null && (!Number.isInteger(requestedLegs) || requestedLegs < 2 || requestedLegs > 30)) {
+    throw new Error("The number of legs must be a whole number between 2 and 30.");
   }
   const fixtures = (await client.getFixtures({ timelineHours: 168, maxPages: 10 })).filter(
     (fixture) => fixture.matchStatus === "Not start" && fixture.startTimeMs > Date.now(),
@@ -232,7 +232,7 @@ async function handleCommand(ctx: Context, text: string): Promise<void> {
       "/trim CODE 20 — trim toward a target combined odds",
       "/remove CODE team=NAME|market=TEXT|date=YYYY-MM-DD|first|last",
       "/random CODE 3 — choose random legs",
-      "/random-target 20 10 — build exactly 10 legs near 20 combined odds; any practical count may be requested",
+      "/random-target 20 — randomly build a live ticket near 20 combined odds",
       "/market CODE Over 2.5 — change legs to an available market",
       "/markets [TEXT] — list matching football markets",
       "/research all — build conservative, balanced, and high-odds tickets from today's live games",
